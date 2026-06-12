@@ -1,6 +1,6 @@
 # MacParakeet Sync — Implementation Plan
 
-> Status: **ACTIVE** — plan approved for later implementation. No code exists yet; coding starts only on explicit go-ahead.
+> Status: **ACTIVE** — plan approved; work is broken into GitHub issues [#1–#12](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues) (see §10 for order and session workflow).
 >
 > Plugin name: **MacParakeet Sync** · Plugin ID: `macparakeet-sync` · Repo: `obsidian-macparakeet-sync`
 
@@ -185,6 +185,8 @@ Formatting (frontmatter fields, index layout, heading styles) is expected to ite
 
 ## 9. Milestones
 
+> Tickets for all milestones are filed as GitHub issues — see §10 for the issue map, execution order, and session workflow.
+
 1. **M1 — Scaffold**: sample-plugin structure adapted, manifest, esbuild, vitest wired, plugin loads in a test vault (no behavior).
 2. **M2 — CLI bridge + settings**: discovery chain, `health --json` validation, full settings tab, status surfaced in settings.
 3. **M3 — Sync engine**: state model, list/diff/skip, fetch, path planning, rendering, manual sync command end-to-end against real data.
@@ -196,6 +198,53 @@ Formatting (frontmatter fields, index layout, heading styles) is expected to ite
 - `npm test` green (pure-logic coverage as in §8).
 - Manual end-to-end in test vault: first sync creates expected folders; second sync is a no-op (all skipped); generate a new AI result in MacParakeet → next sync adds exactly one file; toggle transcript on → old unchanged meetings untouched, next new meeting gets `Transcript.md`; add a personal note inside a meeting folder → never modified; delete a meeting in MacParakeet → vault unchanged.
 
-## 10. Out of scope (v1) / future ideas
+## 10. Execution: ticket order & session workflow
+
+All work is broken into GitHub issues [#1–#12](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues). Each issue is self-contained — goal, context, task checklist, acceptance criteria, and its own end-to-end verification — and sized for a single focused session.
+
+### How to run a session
+
+1. Read this PLAN.md end to end first (decisions, architecture, state model — the issue assumes this context).
+2. Work on exactly **one** issue: implement, unit-test, then run the issue's end-to-end verification section.
+3. Branch per ticket (e.g. `issue-3-tracer-sync`), PR with `Closes #N` in the description, CI green before merge (once #10 has landed).
+4. On the high-risk tickets **#3** and **#5** — they guard the "never touch user files" and "never renumber" invariants — run a code-review pass on the diff before merging.
+
+### Order & parallelism
+
+```
+#1  Scaffold
+ ├─ #10 CI             ┐
+ ├─ #11 Dependabot     ├─ parallel batch after #1 (independent files; land #10 first
+ └─ #2  CLI bridge     ┘  so every later PR gets a green/red signal)
+#3  Tracer sync
+#4  Path engine        (pure-logic core may start during #3 — interface pinned in §7)
+#5  Full sync engine
+ └─ #12 README v1      (parallel — docs only, no code conflicts)
+#6  Settings tab
+#7  Triggers & UX
+#8  Release pipeline
+#9  Final e2e matrix
+```
+
+Everything not marked parallel is sequential by real dependency: #5 needs #4's paths, #6 needs #5's config object, #7 needs #6's interval setting, #8 needs a finished plugin, #9 needs a tagged build. Don't force more parallelism — two sessions editing `main.ts`/the engine concurrently buys merge pain, not speed.
+
+### Session type
+
+Normal single-agent sessions, **one per ticket**. The codebase is small and every ticket fits one context window with room to spare; multi-agent/team sessions earn their cost on wide independent fan-out (audits, migrations), which none of these tickets has. The place for extra agents is *review* on #3/#5, not implementation. The parallel batch doesn't need a team either — three quick PRs in one session, or two terminals on separate branches.
+
+### Milestone ↔ ticket map
+
+| §9 milestone | Issues |
+|---|---|
+| M1 — Scaffold | #1, #10, #11 |
+| M2 — CLI bridge + settings | #2 (bridge), #6 (settings UI) |
+| M3 — Sync engine | #3, #4, #5 |
+| M4 — Triggers + UX | #7 |
+| M5 — Release | #8, #12 |
+| Verification | #9 |
+
+Where the ticket order differs from the milestone grouping (settings UI moved after the engine), the ticket order above wins.
+
+## 11. Out of scope (v1) / future ideas
 
 - Per-prompt allowlist for AI results; orphaned-meeting frontmatter marking; Dataview-friendly extra properties; syncing dictation history or file transcriptions; triggering `prompts run` from Obsidian; Templater-style custom note templates.
