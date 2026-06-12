@@ -1,8 +1,10 @@
-# MacParakeet Sync — Implementation Plan
+# Meeting Notes Sync — Implementation Plan
 
-> Status: **ACTIVE** — plan approved; work is broken into GitHub issues [#1–#12](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues) (see §10 for order and session workflow).
+> Status: **v1 complete** — MacParakeet sync shipped via GitHub issues [#1–#12](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues) (see §10 for the executed order). **v2 planned** — rename, Fellow adapter, multi-source merge (see §12).
 >
-> Plugin name: **MacParakeet Sync** · Plugin ID: `macparakeet-sync` · Repo: `obsidian-macparakeet-sync`
+> v2 identity (rename pending; collision-checked against the community registry and GitHub on 2026-06-12): name **Meeting Notes Sync** · ID `meeting-notes-sync` · Repo `obsidian-meeting-notes-sync`
+>
+> Shipped v1 identity: name **MacParakeet Sync** · ID `macparakeet-sync` · Repo `obsidian-macparakeet-sync`
 
 ## 1. Context & Goal
 
@@ -16,7 +18,7 @@ The plugin is fully independent of the MacParakeet codebase: it consumes only `m
 
 | Topic | Decision |
 |---|---|
-| Vault layout | One **folder per meeting**: `<base folder>/<path template>`, default template `Meetings/{year}/{month}/{n}-{title}` |
+| Vault layout | One **folder per meeting**: `<base folder>/<path template>`, default template `Meetings/{year}/{month} - {monthName}/{n} - {title}` |
 | Path config | Two settings: base folder + token template. Tokens: `{year}`, `{month}` (zero-padded), `{monthName}`, `{day}`, `{date}` (YYYY-MM-DD), `{n}`, `{title}` |
 | Numbering `n` | Per-`{year}/{month}` counter, assigned at **first sync** in sync order, persisted in plugin state, **never reassigned**. Late-synced older meetings get the next free number in their month |
 | Folder contents | Folder note index named like the folder (`{n}-{title}.md` — folder-note plugin compatible) + `Transcript.md` + `Notes.md` + one file per AI result named after its prompt |
@@ -76,7 +78,7 @@ Whichever resolves first is validated with `health --json`; result and resolved 
 |---|---|---|
 | CLI path override | text (path) | empty (auto-discover) |
 | Base folder | text (vault path) | `MacParakeet` |
-| Path template | text | `Meetings/{year}/{month}/{n}-{title}` |
+| Path template | text | `Meetings/{year}/{month} - {monthName}/{n} - {title}` |
 | Sync meetings since | date | plugin install date |
 | Sync AI results | toggle | on |
 | Sync meeting notes | toggle | on |
@@ -248,3 +250,95 @@ Where the ticket order differs from the milestone grouping (settings UI moved af
 ## 11. Out of scope (v1) / future ideas
 
 - Per-prompt allowlist for AI results; orphaned-meeting frontmatter marking; Dataview-friendly extra properties; syncing dictation history or file transcriptions; triggering `prompts run` from Obsidian; Templater-style custom note templates.
+
+## 12. v2 — Multi-source: rename + Fellow adapter
+
+> Status: **planned** (decisions settled 2026-06-12) — work is broken into GitHub issues [#23–#31](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues) (see §12.6 for the map; same session workflow as §10). Goal: the same vault tree also ingests AI meeting recaps from [Fellow](https://fellow.ai), and meetings recorded by *both* Fellow and MacParakeet merge into one folder instead of duplicating.
+
+### 12.1 Rename
+
+One plugin, generic identity; sources become adapters named in the description. Everything here happens **before** the community-store submission — plugin IDs are immutable after store acceptance, and no release is published yet, so the rename is free now.
+
+| Step | Detail |
+|---|---|
+| Repo | `gh repo rename obsidian-meeting-notes-sync` (old URLs redirect); update BRAT path + links in README, `authorUrl` in manifest |
+| Manifest / package.json | `id: meeting-notes-sync`, `name: Meeting Notes Sync`, description: "Sync meeting transcripts, notes, and AI summaries from MacParakeet and Fellow into your vault" (name/ID must not contain "Obsidian") |
+| Own vault migration | With Obsidian closed, rename `.obsidian/plugins/macparakeet-sync/` → `meeting-notes-sync/` so `data.json` (counters, snapshots, file ownership) carries over; otherwise next sync re-imports everything |
+| Generalize conventions | Index frontmatter `type: macparakeet-meeting` → `type: meeting`; default base folder `MacParakeet` → `Meetings`. Per-source keys stay (`macparakeet-id`, new `fellow-id`) |
+
+Collision check (2026-06-12): no `meeting-notes-sync` id/name in the community registry (closest — Meeting Notes Plus, Meeting Notes Synthesizer, Meetings Plus — all different purposes); GitHub repo name unclaimed; **no Fellow→Obsidian plugin exists anywhere**. Prior art is all single-source (`granola-sync` ×3, `plaud-sync`, `snipd-official`).
+
+### 12.2 Fellow source (REST Developer API)
+
+Docs: <https://developers.fellow.ai/> (index: `/llms.txt`). No CLI exists; the official MCP server is an OAuth connector for AI assistants — wrong transport for deterministic background sync. Webhooks (`ai_note.generated`, …) need a public HTTPS endpoint, so the plugin polls with `updated_at` filters instead.
+
+- **Base URL** `https://{subdomain}.fellow.app/api/v1/` · auth header `X-API-KEY` · limits 3 req/s, 10k req/day (ample for 30-min polling)
+- **Prerequisites**: paid Fellow plan; workspace admin enables the API (Workspace Settings → Security); user generates a personal key (User Settings → Developer Tools). Key is scoped to what the user can see in-app, revocable, audit-logged 90 days
+- **Calls** (mirrors the v1 CLI surface): `GET /me` (health) · `POST /notes` with `updated_at_start/end` filters (list/change detection) · `GET /notes/{id}` with `include=content,attendees` → `content_markdown` (already markdown — minimal rendering work) · recordings endpoints with `include` for diarized transcripts (`speech_segments`) · action-items endpoints
+- **Token storage**: plugin settings (`data.json`, plaintext — standard for API-backed community plugins). Masked password input + settings-tab warning about vault sync/git exposure
+- **Open question (resolve first, one live API call):** the docs show no dedicated "AI summary" field — confirm whether the recap text arrives in the note's `content_markdown` or on the Recording object
+
+### 12.3 Architecture
+
+Second adapter implementing the same client facade `SyncEngine` already consumes: `FellowClient` (HTTP via Obsidian `requestUrl`) next to the existing `CliBridge`. Engine, renderer, path planner, and state machinery stay source-agnostic and unchanged in role. `isDesktopOnly: true` stays for now; mobile later only requires lazy-loading the CLI adapter behind `Platform.isDesktop` (no top-level `child_process` import).
+
+### 12.4 Cross-source identity & merge
+
+No shared ID exists (Fellow keys on calendar `event_guid`; MacParakeet uses local UUIDs), so matching is heuristic:
+
+| Signal | Rule |
+|---|---|
+| **Primary — time-interval overlap** | MacParakeet interval = `createdAt + duration`; Fellow = recording start/end. Same meeting if overlap ≥ ~50% of the shorter recording (robust to late starts and differing lengths; exact-start matching is not) |
+| **Secondary — normalized title similarity** | Tiebreaker for back-to-back/double-booked slots and confidence scoring only — titles routinely differ across sources. Uncertain merges get `merge-confidence: low` frontmatter for manual review |
+
+State: `MeetingRecord` gains a canonical `interval {start, end}` and per-source bindings `sources: { macparakeet?: {id, snapshot}, fellow?: {id, snapshot} }`; `files` keys become source-scoped (`transcript:fellow`, `result:<id>` …). The existing per-source snapshot diff (§6) is untouched — identity resolution is a new layer on ingest (overlap lookup within the time bucket → bind to existing record or create one). First source to arrive freezes folder name + `{n}` (consistent with v1's never-renumber rule); the later source — often Fellow's recap, hours after — merges in by overlap match.
+
+Vault output — one folder per real-world meeting, artifacts suffixed by source; index note links everything and carries both IDs + the interval (audit trail; enables manual un-merge of false positives):
+
+```
+Meetings/2026/06 - June/4 - Weekly Standup/
+  4 - Weekly Standup.md        ← index: macparakeet-id + fellow-id + interval in frontmatter
+  Summary (Fellow).md · Action Items (Fellow).md · Transcript (Fellow).md
+  Summary (MacParakeet).md · Transcript (MacParakeet).md · Notes.md
+```
+
+### 12.5 Settings additions
+
+| Setting | Type | Default |
+|---|---|---|
+| MacParakeet source enabled | toggle | **on** (preserves v1 behavior) |
+| Fellow source enabled | toggle | **off** (strictly opt-in) |
+| Fellow workspace subdomain | text | empty |
+| Fellow API key | masked text | empty |
+| Overlap threshold + minimum-overlap-minutes floor | advanced | 50% / sensible floor |
+
+**Per-source enablement is a hard rule:** every source adapter is individually enable/disable-able, and a disabled source is completely inert — no fetches, no writes, no notices, no errors. Fellow ships **disabled by default** and only runs once explicitly enabled *and* configured (subdomain + key); this gating exists from the first client commit, not just from the settings-UI ticket. Disabling a source never touches already-imported content (vault is the archive, §2); re-enabling resumes incremental sync from existing state.
+
+### 12.6 Milestones & tickets
+
+| Milestone | Issues |
+|---|---|
+| **M6 — Rename** (§12.1, incl. own-vault migration) | [#23](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues/23) |
+| **M7 — Fellow client**: API spike (recap placement, §12.2), then `FellowClient` behind the facade, settings + health check | [#24](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues/24) → [#25](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues/25) → [#26](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues/26) |
+| **M8 — Multi-source state**: v1→v2 state migration, interval computation, identity resolution on ingest | [#27](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues/27) → [#28](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues/28) |
+| **M9 — Merge rendering**: source-suffixed artifacts, merged index note, `merge-confidence` flagging | [#29](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues/29) |
+| **M10 — Release**: README rewrite, tagged release, community-store submission PR | [#30](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues/30) |
+| **Verification** — cross-source e2e matrix on real data | [#31](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues/31) |
+
+Order & parallelism:
+
+```
+#23 Rename                          ┐ independent starts: #24 needs only the
+#24 Fellow API spike                ┘ Fellow workspace, not the codebase
+#25 Fellow client      (after #24; coordinate with #27 — both touch the engine)
+#26 Fellow settings    (after #25)
+#27 Multi-source state (after #23; high-risk like v1 #3/#5 — review the diff)
+#28 Identity resolution(after #25 + #27)
+#29 Merge rendering    (after #28)
+#30 Release            (after #23, #26, #29)
+#31 e2e matrix         (after #30 — needs a tagged build)
+```
+
+### 12.7 Out of scope (v2)
+
+Webhook-driven sync; OAuth/MCP transport; additional sources (Granola, Zoom, …) — the adapter seam makes them possible later; un-merge UI (manual via frontmatter audit trail).
