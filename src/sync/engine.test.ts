@@ -104,7 +104,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
 	return { ...DEFAULT_SETTINGS, syncSince: "2000-01-01", ...overrides };
 }
 
-const FOLDER = "MacParakeet/Meetings/2026/06/1-Weekly Standup";
+const FOLDER = "MacParakeet/Meetings/2026/06 - June/1 - Weekly Standup";
 
 describe("SyncEngine — new meeting", () => {
 	it("creates the folder, index, and result files", async () => {
@@ -120,7 +120,7 @@ describe("SyncEngine — new meeting", () => {
 
 		expect(result).toEqual({ created: 1, updated: 0, unchanged: 0 });
 		expect(vault.folders.has(FOLDER)).toBe(true);
-		expect(vault.files.has(`${FOLDER}/1-Weekly Standup.md`)).toBe(true);
+		expect(vault.files.has(`${FOLDER}/1 - Weekly Standup.md`)).toBe(true);
 		expect(vault.files.has(`${FOLDER}/Summary.md`)).toBe(true);
 		expect(state.meetings["m-1"]?.n).toBe(1);
 	});
@@ -179,9 +179,9 @@ describe("SyncEngine — classification matrix", () => {
 
 		expect(result).toEqual({ created: 0, updated: 1, unchanged: 0 });
 		expect(vault.writeLog.sort()).toEqual(
-			[`${FOLDER}/Action Items.md`, `${FOLDER}/1-Weekly Standup.md`].sort(),
+			[`${FOLDER}/Action Items.md`, `${FOLDER}/1 - Weekly Standup.md`].sort(),
 		);
-		expect(vault.files.get(`${FOLDER}/1-Weekly Standup.md`)).toContain("[[Action Items]]");
+		expect(vault.files.get(`${FOLDER}/1 - Weekly Standup.md`)).toContain("[[Action Items]]");
 	});
 });
 

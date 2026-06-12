@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bucketKey, dateParts, joinPath, renderTemplate, sanitizeTitle, uniqueName } from "./paths";
+import { DEFAULT_SETTINGS } from "./types";
 
 describe("sanitizeTitle", () => {
 	it("replaces every character invalid in filenames or links with a dash", () => {
@@ -80,6 +81,15 @@ describe("renderTemplate", () => {
 	it("zero-pads the month", () => {
 		const out = renderTemplate("{month}", { createdAt: "2026-01-09T12:01:00Z", title: "X" }, 1);
 		expect(out).toBe("01");
+	});
+
+	it("renders the default template as a spaced, number-and-name shape", () => {
+		const out = renderTemplate(
+			DEFAULT_SETTINGS.pathTemplate,
+			{ createdAt: "2026-06-09T12:01:00Z", title: "Core sync/discovery" },
+			1,
+		);
+		expect(out).toBe("Meetings/2026/06 - June/1 - Core sync-discovery");
 	});
 });
 
