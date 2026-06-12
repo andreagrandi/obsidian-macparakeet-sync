@@ -77,6 +77,15 @@ describe("renderMeeting", () => {
 		expect(names).toContain("M/Summary (BBBB).md");
 	});
 
+	it("names the index exactly after its folder, regardless of the template", () => {
+		// A folder name that a length cap or custom template would not reproduce
+		// from sanitizing `{n}-{title}` independently.
+		const folderPath = "Archive/2026-06-12 Quarterly Review and Planning Q3 (very long)";
+		const [index] = renderMeeting({ meeting: MEETING, results: [], n: 7, folderPath });
+		expect(index?.key).toBe("index");
+		expect(index?.path).toBe(`${folderPath}/2026-06-12 Quarterly Review and Planning Q3 (very long).md`);
+	});
+
 	it("emits only an index (with no links) when there are no results", () => {
 		const files = renderMeeting({ meeting: MEETING, results: [], n: 1, folderPath: "M" });
 		expect(files).toHaveLength(1);

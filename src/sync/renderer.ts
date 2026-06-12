@@ -52,7 +52,11 @@ export function renderMeeting(input: RenderInput): RenderedFile[] {
 		transcript: transcriptFile ? basename(transcriptFile.path) : undefined,
 	};
 
-	const indexName = sanitizeTitle(`${n}-${meeting.title}`);
+	// The folder note must be named exactly like its folder for folder-note
+	// plugin compatibility (PLAN §7) — derive it from the folder, never re-sanitize
+	// the title independently (which would diverge under length caps or custom
+	// templates that don't place {title} last).
+	const indexName = folderPath.slice(folderPath.lastIndexOf("/") + 1);
 	const index: RenderedFile = {
 		key: "index",
 		path: `${folderPath}/${indexName}.md`,
