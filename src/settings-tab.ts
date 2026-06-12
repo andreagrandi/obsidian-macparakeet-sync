@@ -1,13 +1,13 @@
 import { type App, PluginSettingTab, Setting, debounce, normalizePath } from "obsidian";
-import type MacParakeetSyncPlugin from "./main";
+import type MeetingNotesSyncPlugin from "./main";
 import { cleanBaseFolder, cleanInterval, isValidSyncSince, isValidTemplate } from "./settings";
 
 /** The full configuration UI; reads and writes the plugin's live settings. */
-export class MacParakeetSettingTab extends PluginSettingTab {
-	private readonly plugin: MacParakeetSyncPlugin;
+export class MeetingNotesSettingTab extends PluginSettingTab {
+	private readonly plugin: MeetingNotesSyncPlugin;
 	private cliStatusEl: HTMLElement | null = null;
 
-	constructor(app: App, plugin: MacParakeetSyncPlugin) {
+	constructor(app: App, plugin: MeetingNotesSyncPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}

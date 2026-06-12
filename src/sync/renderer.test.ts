@@ -53,7 +53,7 @@ describe("renderMeeting", () => {
 		})[0];
 
 		expect(index?.content).toContain("macparakeet-id: 550e8400-e29b-41d4-a716-446655440000");
-		expect(index?.content).toContain("type: macparakeet-meeting");
+		expect(index?.content).toContain("type: meeting");
 		expect(index?.content).toContain("duration: 47m");
 		expect(index?.content).toContain("# Weekly Standup");
 		expect(index?.content).toContain("[[Summary]]");

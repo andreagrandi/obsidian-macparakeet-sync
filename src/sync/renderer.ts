@@ -69,7 +69,7 @@ export function renderMeeting(input: RenderInput): RenderedFile[] {
 }
 
 function renderNotesFile(meeting: MeetingDetail, folderPath: string): RenderedFile {
-	const frontmatter = { "macparakeet-id": meeting.id, type: "macparakeet-notes" };
+	const frontmatter = { "macparakeet-id": meeting.id, type: "notes" };
 	return {
 		key: "notes",
 		path: `${folderPath}/Notes.md`,
@@ -79,7 +79,7 @@ function renderNotesFile(meeting: MeetingDetail, folderPath: string): RenderedFi
 }
 
 function renderTranscriptFile(meeting: MeetingDetail, folderPath: string): RenderedFile {
-	const frontmatter = { "macparakeet-id": meeting.id, type: "macparakeet-transcript" };
+	const frontmatter = { "macparakeet-id": meeting.id, type: "transcript" };
 	return {
 		key: "transcript",
 		path: `${folderPath}/Transcript.md`,
@@ -124,7 +124,7 @@ function sortResults(results: AiResult[]): AiResult[] {
 function renderIndex(meeting: MeetingDetail, links: IndexLinks): string {
 	const frontmatter: Record<string, string> = {
 		"macparakeet-id": meeting.id,
-		type: "macparakeet-meeting",
+		type: "meeting",
 		date: meeting.createdAt,
 		duration: formatDuration(meeting.durationMs),
 	};

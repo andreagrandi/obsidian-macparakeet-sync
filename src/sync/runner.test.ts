@@ -49,7 +49,7 @@ describe("SyncRunner — single-flight", () => {
 		const first = runner.run("background");
 		await runner.run("manual");
 
-		expect(notify).toHaveBeenCalledWith("MacParakeet Sync: a sync is already running.");
+		expect(notify).toHaveBeenCalledWith("Meeting Notes Sync: a sync is already running.");
 		deferred.resolve(EMPTY);
 		await first;
 	});
@@ -66,7 +66,7 @@ describe("SyncRunner — notice policy", () => {
 	it("always reports a manual sync result", async () => {
 		const { runner, notify, log } = makeRunner(async () => ({ created: 2, updated: 1, unchanged: 14 }));
 		await runner.run("manual");
-		expect(notify).toHaveBeenCalledWith("MacParakeet Sync: 2 new, 1 updated, 14 unchanged");
+		expect(notify).toHaveBeenCalledWith("Meeting Notes Sync: 2 new, 1 updated, 14 unchanged");
 		expect(log).not.toHaveBeenCalled();
 	});
 
@@ -74,7 +74,7 @@ describe("SyncRunner — notice policy", () => {
 		const { runner, notify, log } = makeRunner(async () => ({ created: 1, updated: 0, unchanged: 3 }));
 		await runner.run("background");
 		expect(notify).not.toHaveBeenCalled();
-		expect(log).toHaveBeenCalledWith("MacParakeet Sync: 1 new, 0 updated, 3 unchanged");
+		expect(log).toHaveBeenCalledWith("Meeting Notes Sync: 1 new, 0 updated, 3 unchanged");
 	});
 
 	it("notifies a manual sync failure with the actionable message", async () => {
@@ -83,7 +83,7 @@ describe("SyncRunner — notice policy", () => {
 			throw error;
 		});
 		await runner.run("manual");
-		expect(notify).toHaveBeenCalledWith("MacParakeet Sync: Could not find macparakeet-cli.");
+		expect(notify).toHaveBeenCalledWith("Meeting Notes Sync: Could not find macparakeet-cli.");
 		expect(logError).toHaveBeenCalled();
 	});
 

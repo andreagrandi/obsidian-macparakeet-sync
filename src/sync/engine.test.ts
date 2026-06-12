@@ -104,7 +104,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
 	return { ...DEFAULT_SETTINGS, syncSince: "2000-01-01", ...overrides };
 }
 
-const FOLDER = "MacParakeet/Meetings/2026/06 - June/1 - Weekly Standup";
+const FOLDER = "Meetings/2026/06 - June/1 - Weekly Standup";
 
 describe("SyncEngine — new meeting", () => {
 	it("creates the folder, index, and result files", async () => {

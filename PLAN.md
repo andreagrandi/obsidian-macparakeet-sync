@@ -1,8 +1,8 @@
 # Meeting Notes Sync — Implementation Plan
 
-> Status: **v1 complete** — MacParakeet sync shipped via GitHub issues [#1–#12](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues) (see §10 for the executed order). **v2 planned** — rename, Fellow adapter, multi-source merge (see §12).
+> Status: **v1 complete** — MacParakeet sync shipped via GitHub issues [#1–#12](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues) (see §10 for the executed order). **v2 in progress** — rename done; Fellow adapter and multi-source merge next (see §12).
 >
-> v2 identity (rename pending; collision-checked against the community registry and GitHub on 2026-06-12): name **Meeting Notes Sync** · ID `meeting-notes-sync` · Repo `obsidian-meeting-notes-sync`
+> v2 identity (renamed 2026-06-12; collision-checked against the community registry and GitHub): name **Meeting Notes Sync** · ID `meeting-notes-sync` · Repo `obsidian-meeting-notes-sync`
 >
 > Shipped v1 identity: name **MacParakeet Sync** · ID `macparakeet-sync` · Repo `obsidian-macparakeet-sync`
 
@@ -253,7 +253,7 @@ Where the ticket order differs from the milestone grouping (settings UI moved af
 
 ## 12. v2 — Multi-source: rename + Fellow adapter
 
-> Status: **planned** (decisions settled 2026-06-12) — work is broken into GitHub issues [#23–#31](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues) (see §12.6 for the map; same session workflow as §10). Goal: the same vault tree also ingests AI meeting recaps from [Fellow](https://fellow.ai), and meetings recorded by *both* Fellow and MacParakeet merge into one folder instead of duplicating.
+> Status: **in progress** — **M6 rename complete**; the rest planned (decisions settled 2026-06-12) — work is broken into GitHub issues [#23–#31](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues) (see §12.6 for the map; same session workflow as §10). Goal: the same vault tree also ingests AI meeting recaps from [Fellow](https://fellow.ai), and meetings recorded by *both* Fellow and MacParakeet merge into one folder instead of duplicating.
 
 ### 12.1 Rename
 
@@ -264,7 +264,7 @@ One plugin, generic identity; sources become adapters named in the description. 
 | Repo | `gh repo rename obsidian-meeting-notes-sync` (old URLs redirect); update BRAT path + links in README, `authorUrl` in manifest |
 | Manifest / package.json | `id: meeting-notes-sync`, `name: Meeting Notes Sync`, description: "Sync meeting transcripts, notes, and AI summaries from MacParakeet and Fellow into your vault" (name/ID must not contain "Obsidian") |
 | Own vault migration | With Obsidian closed, rename `.obsidian/plugins/macparakeet-sync/` → `meeting-notes-sync/` so `data.json` (counters, snapshots, file ownership) carries over; otherwise next sync re-imports everything |
-| Generalize conventions | Index frontmatter `type: macparakeet-meeting` → `type: meeting`; default base folder `MacParakeet` → `Meetings`. Per-source keys stay (`macparakeet-id`, new `fellow-id`) |
+| Generalize conventions | Frontmatter `type` generalized: `macparakeet-meeting` → `meeting`, `macparakeet-notes` → `notes`, `macparakeet-transcript` → `transcript`. Default base folder set to **empty** so the template's `Meetings/…` is the root (yields `Meetings/2026/06 - June/…`), rather than a literal `Meetings` base. Per-source keys stay (`macparakeet-id`, new `fellow-id`) |
 
 Collision check (2026-06-12): no `meeting-notes-sync` id/name in the community registry (closest — Meeting Notes Plus, Meeting Notes Synthesizer, Meetings Plus — all different purposes); GitHub repo name unclaimed; **no Fellow→Obsidian plugin exists anywhere**. Prior art is all single-source (`granola-sync` ×3, `plaud-sync`, `snipd-official`).
 
@@ -318,7 +318,7 @@ Meetings/2026/06 - June/4 - Weekly Standup/
 
 | Milestone | Issues |
 |---|---|
-| **M6 — Rename** (§12.1, incl. own-vault migration) | [#23](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues/23) |
+| **M6 — Rename** ✅ done (§12.1, incl. own-vault migration) | [#23](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues/23) |
 | **M7 — Fellow client**: API spike (recap placement, §12.2), then `FellowClient` behind the facade, settings + health check | [#24](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues/24) → [#25](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues/25) → [#26](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues/26) |
 | **M8 — Multi-source state**: v1→v2 state migration, interval computation, identity resolution on ingest | [#27](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues/27) → [#28](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues/28) |
 | **M9 — Merge rendering**: source-suffixed artifacts, merged index note, `merge-confidence` flagging | [#29](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues/29) |
