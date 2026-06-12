@@ -10,9 +10,9 @@ describe("cleanBaseFolder", () => {
 		expect(cleanBaseFolder("a//b///c")).toBe("a/b/c");
 	});
 
-	it("falls back to the default when empty", () => {
-		expect(cleanBaseFolder("   ")).toBe("MacParakeet");
-		expect(cleanBaseFolder("///")).toBe("MacParakeet");
+	it("returns an empty base when blank (defaults to the vault root)", () => {
+		expect(cleanBaseFolder("   ")).toBe("");
+		expect(cleanBaseFolder("///")).toBe("");
 	});
 });
 

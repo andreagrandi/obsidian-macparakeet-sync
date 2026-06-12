@@ -23,7 +23,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
 	cliPath: "",
-	baseFolder: "MacParakeet",
+	baseFolder: "",
 	pathTemplate: "Meetings/{year}/{month} - {monthName}/{n} - {title}",
 	syncSince: "",
 	syncResults: true,

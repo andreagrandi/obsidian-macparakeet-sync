@@ -1,16 +1,16 @@
-# MacParakeet Sync
+# Meeting Notes Sync
 
-[![CI](https://github.com/andreagrandi/obsidian-macparakeet-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/andreagrandi/obsidian-macparakeet-sync/actions/workflows/ci.yml)
+[![CI](https://github.com/andreagrandi/obsidian-meeting-notes-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/andreagrandi/obsidian-meeting-notes-sync/actions/workflows/ci.yml)
 
 Obsidian plugin that syncs meeting transcripts, notes, and AI summaries from [MacParakeet](https://macparakeet.com) into your vault — one folder per meeting, fully local.
 
-> **Status: in development.** No release has been published yet. Follow the [issues](https://github.com/andreagrandi/obsidian-macparakeet-sync/issues) for progress; the full design is in [PLAN.md](PLAN.md). This is an unofficial community plugin, not affiliated with the MacParakeet project.
+> **Status: in development.** No release has been published yet. Follow the [issues](https://github.com/andreagrandi/obsidian-meeting-notes-sync/issues) for progress; the full design is in [PLAN.md](PLAN.md). This is an unofficial community plugin, not affiliated with the MacParakeet project.
 
 ## What it does
 
 MacParakeet records and transcribes meetings locally on your Mac and generates AI summaries. This plugin pulls that content into Obsidian:
 
-- **One folder per meeting**, e.g. `MacParakeet/Meetings/2026/06 - June/2 - Weekly Standup/`, containing a folder-note index, one file per AI result (`Summary.md`, `Action Items.md`, …), your typed meeting notes, and optionally the full transcript.
+- **One folder per meeting**, e.g. `Meetings/2026/06 - June/2 - Weekly Standup/`, containing a folder-note index, one file per AI result (`Summary.md`, `Action Items.md`, …), your typed meeting notes, and optionally the full transcript.
 - **Incremental**: each sync makes one cheap CLI call and skips meetings that haven't changed. New AI summaries on old meetings show up as new files.
 - **Archive semantics**: the vault is your archive. Deleting a meeting in MacParakeet (e.g. to free disk space) never deletes anything in your vault, and files you create inside a meeting folder are never touched.
 - **Local-first**: everything happens on your machine via `macparakeet-cli`. No network, no accounts.
@@ -25,27 +25,37 @@ MacParakeet records and transcribes meetings locally on your Mac and generates A
 The plugin is not yet in the community store. Once releases exist, you can install it before store approval via [BRAT](https://github.com/TfTHacker/obsidian42-brat):
 
 1. Install the "BRAT" community plugin in Obsidian
-2. BRAT settings → *Add beta plugin* → `andreagrandi/obsidian-macparakeet-sync`
-3. Enable **MacParakeet Sync** in *Settings → Community plugins*
+2. BRAT settings → *Add beta plugin* → `andreagrandi/obsidian-meeting-notes-sync`
+3. Enable **Meeting Notes Sync** in *Settings → Community plugins*
 
-Manual install (from a [release](https://github.com/andreagrandi/obsidian-macparakeet-sync/releases)):
+Manual install (from a [release](https://github.com/andreagrandi/obsidian-meeting-notes-sync/releases)):
 
 1. Download `main.js` and `manifest.json` from the latest release
-2. Copy them into `<your vault>/.obsidian/plugins/macparakeet-sync/`
+2. Copy them into `<your vault>/.obsidian/plugins/meeting-notes-sync/`
 3. Reload Obsidian and enable the plugin
 
 Or build from source:
 
-    git clone https://github.com/andreagrandi/obsidian-macparakeet-sync
-    cd obsidian-macparakeet-sync
+    git clone https://github.com/andreagrandi/obsidian-meeting-notes-sync
+    cd obsidian-meeting-notes-sync
     npm install
     npm run build
-    # copy main.js + manifest.json into <vault>/.obsidian/plugins/macparakeet-sync/
+    # copy main.js + manifest.json into <vault>/.obsidian/plugins/meeting-notes-sync/
+
+### Migrating from "MacParakeet Sync"
+
+If you ran an earlier build under the old `macparakeet-sync` plugin id, carry your sync state over so the next sync is a no-op instead of re-importing every meeting:
+
+1. Quit Obsidian completely.
+2. Rename `<your vault>/.obsidian/plugins/macparakeet-sync/` → `meeting-notes-sync/`.
+3. Reopen Obsidian and re-enable the plugin.
+
+This preserves `data.json` — folder numbering, change snapshots, and which files the plugin owns.
 
 ## Usage
 
-1. Open *Settings → MacParakeet Sync*. The plugin auto-detects `macparakeet-cli` (Homebrew paths, then the app bundle at `/Applications/MacParakeet.app/Contents/MacOS/macparakeet-cli`); set the path manually if needed. A health check confirms the connection.
-2. Choose a **base folder** (default `MacParakeet`) and optionally adjust the **path template** (default `Meetings/{year}/{month} - {monthName}/{n} - {title}`).
+1. Open *Settings → Meeting Notes Sync*. The plugin auto-detects `macparakeet-cli` (Homebrew paths, then the app bundle at `/Applications/MacParakeet.app/Contents/MacOS/macparakeet-cli`); set the path manually if needed. A health check confirms the connection.
+2. Choose a **base folder** (empty by default, so meetings land under `Meetings/…` straight from the path template) and optionally adjust the **path template** (default `Meetings/{year}/{month} - {monthName}/{n} - {title}`).
 3. Pick what to sync: **AI results** (on), **meeting notes** (on), **full transcript** (off by default — transcripts are long).
 4. Sync runs automatically on launch and every 30 minutes (configurable, `0` disables), or on demand via the ribbon icon / `Sync now` command.
 

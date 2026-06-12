@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { CliBridge, nodeCommandRunner } from "./cli";
 import { SyncEngine, SyncRunner, describeError, normalizeData } from "./sync";
 import type { PluginData, Settings, SyncOptions, VaultIO } from "./sync";
-import { MacParakeetSettingTab } from "./settings-tab";
+import { MeetingNotesSettingTab } from "./settings-tab";
 
 /** Delay after layout-ready before the on-launch sync, so startup is never slowed. */
 const LAUNCH_DELAY_MS = 15_000;
@@ -16,7 +16,7 @@ export interface CliStatus {
 	error?: string;
 }
 
-export default class MacParakeetSyncPlugin extends Plugin {
+export default class MeetingNotesSyncPlugin extends Plugin {
 	private cli!: CliBridge;
 	private engine!: SyncEngine;
 	private runner!: SyncRunner;
@@ -79,7 +79,7 @@ export default class MacParakeetSyncPlugin extends Plugin {
 			},
 		});
 
-		this.addSettingTab(new MacParakeetSettingTab(this.app, this));
+		this.addSettingTab(new MeetingNotesSettingTab(this.app, this));
 
 		this.applySchedule();
 		this.scheduleLaunchSync();
@@ -150,10 +150,10 @@ export default class MacParakeetSyncPlugin extends Plugin {
 	private async checkConnection(): Promise<void> {
 		try {
 			const { cliPath, meetingCount } = await this.cli.checkConnection();
-			new Notice(`MacParakeet Sync: connected.\nCLI: ${cliPath}\nMeetings: ${meetingCount}`);
+			new Notice(`Meeting Notes Sync: connected.\nCLI: ${cliPath}\nMeetings: ${meetingCount}`);
 		} catch (error) {
-			new Notice(`MacParakeet Sync: ${describeError(error)}`);
-			console.error("MacParakeet Sync: check connection failed", error);
+			new Notice(`Meeting Notes Sync: ${describeError(error)}`);
+			console.error("Meeting Notes Sync: check connection failed", error);
 		}
 	}
 }

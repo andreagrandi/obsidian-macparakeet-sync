@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-macparakeet-sync",
+	"name": "obsidian-meeting-notes-sync",
 	"version": "0.1.0",
-	"description": "Unofficial Obsidian plugin that syncs MacParakeet meeting transcripts, notes, and AI summaries into your vault.",
+	"description": "Sync meeting transcripts, notes, and AI summaries from MacParakeet and Fellow into your vault.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
@@ -13,7 +13,9 @@
 	"keywords": [
 		"obsidian",
 		"obsidian-plugin",
-		"macparakeet"
+		"meeting-notes",
+		"macparakeet",
+		"fellow"
 	],
 	"license": "MIT",
 	"devDependencies": {

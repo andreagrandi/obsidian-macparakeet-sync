@@ -36,7 +36,7 @@ export class SyncRunner {
 	async run(trigger: SyncTrigger, options: SyncOptions = {}): Promise<void> {
 		if (this.running) {
 			if (trigger === "manual") {
-				this.deps.notify("MacParakeet Sync: a sync is already running.");
+				this.deps.notify("Meeting Notes Sync: a sync is already running.");
 			}
 			return;
 		}
@@ -52,7 +52,7 @@ export class SyncRunner {
 	}
 
 	private handleSuccess(trigger: SyncTrigger, summary: SyncSummary): void {
-		const message = `MacParakeet Sync: ${formatSummary(summary)}`;
+		const message = `Meeting Notes Sync: ${formatSummary(summary)}`;
 		if (trigger === "manual") {
 			this.deps.notify(message);
 		} else {
@@ -63,13 +63,13 @@ export class SyncRunner {
 	}
 
 	private handleError(trigger: SyncTrigger, error: unknown): void {
-		const message = `MacParakeet Sync: ${describeError(error)}`;
+		const message = `Meeting Notes Sync: ${describeError(error)}`;
 		if (trigger === "manual") {
 			this.deps.notify(message);
-			this.deps.logError("MacParakeet Sync: manual sync failed", error);
+			this.deps.logError("Meeting Notes Sync: manual sync failed", error);
 			return;
 		}
-		this.deps.logError("MacParakeet Sync: background sync failed", error);
+		this.deps.logError("Meeting Notes Sync: background sync failed", error);
 		this.backgroundFailureStreak += 1;
 		if (this.backgroundFailureStreak === 1) {
 			this.deps.notify(message);
