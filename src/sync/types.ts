@@ -40,13 +40,44 @@ export interface FileRecord {
 	sourceUpdatedAt: string;
 }
 
-/** Per-meeting state: frozen numbering, change snapshot, and owned files. */
+/** The meeting sources the plugin can ingest from. */
+export type SourceName = "macparakeet" | "fellow";
+
+/** A canonical real-world time interval (ISO 8601) for cross-source matching. */
+export interface Interval {
+	start: string;
+	end: string;
+}
+
+/** Change-detection snapshot for one source binding. */
+export interface SourceSnapshot {
+	updatedAt: string;
+	/** MacParakeet's AI-result count; sources without the notion leave it at 0. */
+	promptResultCount: number;
+}
+
+/** One source's contribution to a (possibly multi-source) meeting record. */
+export interface SourceBinding {
+	id: string;
+	snapshot: SourceSnapshot;
+}
+
+/**
+ * Per-meeting state: frozen numbering, per-source bindings, and owned files.
+ * One record can bind several sources after a cross-source merge.
+ */
 export interface MeetingRecord {
 	folderPath: string;
 	n: number;
 	bucket: string;
-	snapshot: { updatedAt: string; promptResultCount: number };
-	/** key -> file; keys: "index", "transcript", "notes", "result:<result-id>". */
+	/** Canonical real-world interval; backfilled lazily for legacy records. */
+	interval?: Interval;
+	/** Per-source id + change snapshot; keyed by source name. */
+	sources: Partial<Record<SourceName, SourceBinding>>;
+	/**
+	 * key -> file. Legacy keys ("index", "transcript", "notes", "result:<id>")
+	 * are preserved; new artifacts source-scope their keys ("transcript:macparakeet").
+	 */
 	files: Record<string, FileRecord>;
 }
 

@@ -18,7 +18,15 @@ export {
 export type { RenderInput, RenderedFile } from "./renderer";
 export { SyncRunner, describeError, formatSummary } from "./runner";
 export type { SyncRunnerDeps, SyncTrigger } from "./runner";
-export { assignNumber, effectiveSyncSince, normalizeData } from "./state";
+export {
+	assignNumber,
+	buildSourceIndex,
+	effectiveSyncSince,
+	findBySource,
+	intervalFromDuration,
+	normalizeData,
+	sourceIndexKey,
+} from "./state";
 export {
 	DEFAULT_SETTINGS,
 	emptyState,
@@ -26,9 +34,13 @@ export {
 export type {
 	CliClient,
 	FileRecord,
+	Interval,
 	MeetingRecord,
 	PluginData,
 	Settings,
+	SourceBinding,
+	SourceName,
+	SourceSnapshot,
 	SyncOptions,
 	SyncStateData,
 	SyncSummary,
