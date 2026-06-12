@@ -20,15 +20,37 @@ export interface RenderInput {
 	results: AiResult[];
 	n: number;
 	folderPath: string;
+	includeNotes?: boolean;
+	includeTranscript?: boolean;
 }
 
-/** Render the index note plus one file per AI result for a meeting. */
+/** The artifact links shown in the index, grouped by kind. */
+interface IndexLinks {
+	results: string[];
+	notes?: string;
+	transcript?: string;
+}
+
+/** Render the index note plus the enabled artifact files for a meeting. */
 export function renderMeeting(input: RenderInput): RenderedFile[] {
 	const { meeting, n, folderPath } = input;
 	const results = sortResults(input.results);
 
 	const resultFiles = renderResults(meeting, results, folderPath);
-	const links = resultFiles.map((file) => basename(file.path));
+	const notesFile =
+		input.includeNotes && meeting.userNotes.trim().length > 0
+			? renderNotesFile(meeting, folderPath)
+			: null;
+	const transcriptFile =
+		input.includeTranscript && meeting.transcript.trim().length > 0
+			? renderTranscriptFile(meeting, folderPath)
+			: null;
+
+	const links: IndexLinks = {
+		results: resultFiles.map((file) => basename(file.path)),
+		notes: notesFile ? basename(notesFile.path) : undefined,
+		transcript: transcriptFile ? basename(transcriptFile.path) : undefined,
+	};
 
 	const indexName = sanitizeTitle(`${n}-${meeting.title}`);
 	const index: RenderedFile = {
@@ -38,7 +60,28 @@ export function renderMeeting(input: RenderInput): RenderedFile[] {
 		sourceUpdatedAt: meeting.updatedAt,
 	};
 
-	return [index, ...resultFiles];
+	const artifacts = [notesFile, transcriptFile].filter((file): file is RenderedFile => file !== null);
+	return [index, ...resultFiles, ...artifacts];
+}
+
+function renderNotesFile(meeting: MeetingDetail, folderPath: string): RenderedFile {
+	const frontmatter = { "macparakeet-id": meeting.id, type: "macparakeet-notes" };
+	return {
+		key: "notes",
+		path: `${folderPath}/Notes.md`,
+		content: `${renderFrontmatter(frontmatter)}\n# Notes\n\n${meeting.userNotes.trim()}\n`,
+		sourceUpdatedAt: meeting.updatedAt,
+	};
+}
+
+function renderTranscriptFile(meeting: MeetingDetail, folderPath: string): RenderedFile {
+	const frontmatter = { "macparakeet-id": meeting.id, type: "macparakeet-transcript" };
+	return {
+		key: "transcript",
+		path: `${folderPath}/Transcript.md`,
+		content: `${renderFrontmatter(frontmatter)}\n# Transcript\n\n${meeting.transcript.trim()}\n`,
+		sourceUpdatedAt: meeting.updatedAt,
+	};
 }
 
 /** Render one file per result, disambiguating duplicate prompt names. */
@@ -74,7 +117,7 @@ function sortResults(results: AiResult[]): AiResult[] {
 	});
 }
 
-function renderIndex(meeting: MeetingDetail, links: string[]): string {
+function renderIndex(meeting: MeetingDetail, links: IndexLinks): string {
 	const frontmatter: Record<string, string> = {
 		"macparakeet-id": meeting.id,
 		type: "macparakeet-meeting",
@@ -85,9 +128,20 @@ function renderIndex(meeting: MeetingDetail, links: string[]): string {
 		frontmatter.engine = meeting.engine;
 	}
 
+	const bullets: string[] = [];
+	if (links.results.length > 0) {
+		bullets.push(`- ${links.results.map((target) => `[[${target}]]`).join(" · ")}`);
+	}
+	if (links.notes) {
+		bullets.push(`- [[${links.notes}]]`);
+	}
+	if (links.transcript) {
+		bullets.push(`- [[${links.transcript}]]`);
+	}
+
 	const body = [`# ${meeting.title}`];
-	if (links.length > 0) {
-		body.push("", links.map((target) => `[[${target}]]`).join(" · "));
+	if (bullets.length > 0) {
+		body.push("", ...bullets);
 	}
 	return `${renderFrontmatter(frontmatter)}\n${body.join("\n")}\n`;
 }

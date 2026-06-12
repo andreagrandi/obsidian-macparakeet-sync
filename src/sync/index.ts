@@ -1,5 +1,5 @@
-export { SyncEngine, isUnchanged, mostRecentCompleted } from "./engine";
-export type { SyncEngineDeps } from "./engine";
+export { SyncEngine, inScope, isUnchanged } from "./engine";
+export type { SyncEngineDeps, SyncOptions } from "./engine";
 export {
 	bucketKey,
 	dateParts,

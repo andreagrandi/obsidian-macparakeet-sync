@@ -1,12 +1,12 @@
 /**
- * SyncEngine: orchestrate one sync run. For #3 this is scoped to the single
- * most recent completed meeting; #5 widens it to all in-scope meetings.
+ * SyncEngine: orchestrate one sync run over every in-scope meeting, with
+ * new/changed/skip classification, mirror updates, and strict file ownership.
  */
 
 import type { MeetingSummary } from "../cli/types";
-import { joinPath, bucketKey, renderTemplate } from "./paths";
+import { joinPath, bucketKey, dateParts, renderTemplate } from "./paths";
 import { renderMeeting } from "./renderer";
-import { assignNumber } from "./state";
+import { assignNumber, effectiveSyncSince } from "./state";
 import type {
 	CliClient,
 	MeetingRecord,
@@ -26,6 +26,11 @@ export interface SyncEngineDeps {
 	persist: () => Promise<void>;
 }
 
+export interface SyncOptions {
+	/** Re-render and overwrite every in-scope meeting, ignoring the cheap diff. */
+	force?: boolean;
+}
+
 export class SyncEngine {
 	private readonly cli: CliClient;
 	private readonly vault: VaultIO;
@@ -41,27 +46,31 @@ export class SyncEngine {
 		this.persist = deps.persist;
 	}
 
-	/** Sync the single most recent completed meeting (tracer scope, #3). */
-	async sync(): Promise<SyncSummary> {
+	/** Sync every completed meeting created on/after the sync-since date. */
+	async sync(options: SyncOptions = {}): Promise<SyncSummary> {
+		const force = options.force ?? false;
 		const summary: SyncSummary = { created: 0, updated: 0, unchanged: 0 };
-		const meetings = await this.cli.listMeetings();
-		const target = mostRecentCompleted(meetings);
-		if (!target) {
-			return summary;
+
+		const meetings = inScope(await this.cli.listMeetings(), this.syncSince());
+		for (const meeting of meetings) {
+			tally(summary, await this.processMeeting(meeting, force));
 		}
-		const outcome = await this.processMeeting(target);
-		tally(summary, outcome);
+
 		await this.persist();
 		return summary;
 	}
 
-	/** Classify one meeting, fetch + render only when it is new or changed. */
-	private async processMeeting(meeting: MeetingSummary): Promise<Outcome> {
+	private syncSince(): string {
+		return effectiveSyncSince(this.getSettings(), this.getState());
+	}
+
+	/** Classify one meeting, fetch + render only when new, changed, or forced. */
+	private async processMeeting(meeting: MeetingSummary, force: boolean): Promise<Outcome> {
 		const state = this.getState();
 		const settings = this.getSettings();
 		const record = state.meetings[meeting.id];
 
-		if (record && isUnchanged(record, meeting)) {
+		if (record && !force && isUnchanged(record, meeting)) {
 			return "unchanged";
 		}
 
@@ -86,14 +95,25 @@ export class SyncEngine {
 			await this.vault.createFolder(folderPath);
 		}
 
-		const rendered = renderMeeting({ meeting: detail, results, n, folderPath });
+		const rendered = renderMeeting({
+			meeting: detail,
+			results,
+			n,
+			folderPath,
+			includeNotes: settings.syncNotes,
+			includeTranscript: settings.syncTranscript,
+		});
 		const index = rendered.find((file) => file.key === "index");
 		const artifacts = rendered.filter((file) => file.key !== "index");
 
 		let wrote = 0;
 		for (const file of artifacts) {
 			const existing = current.files[file.key];
-			const stale = !existing || existing.sourceUpdatedAt !== file.sourceUpdatedAt || existing.path !== file.path;
+			const stale =
+				force ||
+				!existing ||
+				existing.sourceUpdatedAt !== file.sourceUpdatedAt ||
+				existing.path !== file.path;
 			if (stale) {
 				await this.vault.write(file.path, file.content);
 				current.files[file.key] = { path: file.path, sourceUpdatedAt: file.sourceUpdatedAt };
@@ -103,16 +123,25 @@ export class SyncEngine {
 
 		if (index) {
 			const existing = current.files.index;
-			const stale = !existing || existing.sourceUpdatedAt !== index.sourceUpdatedAt || existing.path !== index.path;
-			if (isNew || wrote > 0 || stale) {
+			const indexStale =
+				force ||
+				!existing ||
+				existing.sourceUpdatedAt !== index.sourceUpdatedAt ||
+				existing.path !== index.path;
+			if (isNew || wrote > 0 || indexStale) {
 				await this.vault.write(index.path, index.content);
 				current.files.index = { path: index.path, sourceUpdatedAt: index.sourceUpdatedAt };
+				wrote += 1;
 			}
 		}
 
 		current.snapshot = { updatedAt: meeting.updatedAt, promptResultCount: meeting.promptResultCount };
 		state.meetings[meeting.id] = current;
-		return isNew ? "created" : "updated";
+
+		if (isNew) {
+			return "created";
+		}
+		return wrote > 0 ? "updated" : "unchanged";
 	}
 }
 
@@ -124,15 +153,15 @@ export function isUnchanged(record: MeetingRecord, meeting: MeetingSummary): boo
 	);
 }
 
-/** The most recent completed meeting by createdAt, or null if there are none. */
-export function mostRecentCompleted(meetings: MeetingSummary[]): MeetingSummary | null {
-	const completed = meetings.filter((meeting) => meeting.status === "completed");
-	if (completed.length === 0) {
-		return null;
-	}
-	return completed.reduce((latest, meeting) =>
-		meeting.createdAt > latest.createdAt ? meeting : latest,
-	);
+/**
+ * Completed meetings created on/after `since`, oldest first for stable
+ * numbering. `since` is a calendar date (YYYY-MM-DD), so compare it against the
+ * meeting's UTC date rather than its full timestamp to keep the boundary crisp.
+ */
+export function inScope(meetings: MeetingSummary[], since: string): MeetingSummary[] {
+	return meetings
+		.filter((meeting) => meeting.status === "completed" && dateParts(meeting.createdAt).date >= since)
+		.sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
 }
 
 function tally(summary: SyncSummary, outcome: Outcome): void {

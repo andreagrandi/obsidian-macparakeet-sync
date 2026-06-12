@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { CliBridge, CliError, nodeCommandRunner } from "./cli";
 import { SyncEngine } from "./sync";
 import { normalizeData } from "./sync";
-import type { PluginData, SyncSummary, VaultIO } from "./sync";
+import type { PluginData, SyncOptions, SyncSummary, VaultIO } from "./sync";
 
 export default class MacParakeetSyncPlugin extends Plugin {
 	private cli!: CliBridge;
@@ -43,6 +43,14 @@ export default class MacParakeetSyncPlugin extends Plugin {
 				void this.syncNow();
 			},
 		});
+
+		this.addCommand({
+			id: "force-resync",
+			name: "Force re-sync",
+			callback: () => {
+				void this.syncNow({ force: true });
+			},
+		});
 	}
 
 	onunload(): void {
@@ -59,9 +67,9 @@ export default class MacParakeetSyncPlugin extends Plugin {
 		}
 	}
 
-	private async syncNow(): Promise<void> {
+	private async syncNow(options: SyncOptions = {}): Promise<void> {
 		try {
-			const summary = await this.engine.sync();
+			const summary = await this.engine.sync(options);
 			new Notice(`MacParakeet Sync: ${summarize(summary)}`);
 		} catch (error) {
 			new Notice(`MacParakeet Sync: ${describeCliError(error)}`);
