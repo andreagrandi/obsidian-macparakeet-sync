@@ -16,6 +16,34 @@ export interface MeetingSummary {
 	promptResultCount: number;
 }
 
+/** A meeting's details from `meetings show <id> --json`. */
+export interface MeetingDetail {
+	id: string;
+	shortID: string;
+	title: string;
+	status: string;
+	createdAt: string;
+	updatedAt: string;
+	durationMs: number;
+	/** Clean transcript, falling back to the raw transcript when absent. */
+	transcript: string;
+	/** The user's typed meeting notes; empty string when there are none. */
+	userNotes: string;
+	/** Speech engine, when the CLI reports it (not always present). */
+	engine?: string;
+}
+
+/** A single AI prompt result from `meetings results list <id> --json`. */
+export interface AiResult {
+	id: string;
+	shortID: string;
+	name: string;
+	content: string;
+	promptContent: string;
+	createdAt: string;
+	updatedAt: string;
+}
+
 /** Parsed `health --json` output; only the database block is load-bearing. */
 export interface HealthResult {
 	database?: {

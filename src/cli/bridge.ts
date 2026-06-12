@@ -1,8 +1,10 @@
 import {
+	type AiResult,
 	CliError,
 	type CliRunResult,
 	type CommandRunner,
 	type HealthResult,
+	type MeetingDetail,
 	type MeetingSummary,
 } from "./types";
 
@@ -95,6 +97,20 @@ export class CliBridge {
 		const cliPath = await this.resolveCli();
 		const data = await this.runJson(cliPath, LIST_ARGS);
 		return parseMeetingSummaries(data);
+	}
+
+	/** Fetch one meeting's details (transcript, notes, metadata). */
+	async showMeeting(id: string): Promise<MeetingDetail> {
+		const cliPath = await this.resolveCli();
+		const data = await this.runJson(cliPath, ["meetings", "show", id, "--json"]);
+		return parseMeetingDetail(data);
+	}
+
+	/** Fetch the AI prompt results for one meeting. */
+	async listResults(id: string): Promise<AiResult[]> {
+		const cliPath = await this.resolveCli();
+		const data = await this.runJson(cliPath, ["meetings", "results", "list", id, "--json"]);
+		return parseAiResults(data);
 	}
 
 	/** Validate the binary and count meetings — backs the "Check connection" command. */
@@ -190,6 +206,61 @@ function coerceMeetingSummary(raw: unknown, index: number): MeetingSummary {
 		hasNotes: obj.hasNotes === true,
 		promptResultCount: typeof obj.promptResultCount === "number" ? obj.promptResultCount : 0,
 	};
+}
+
+/** Read a property as a string, falling back to "" for any non-string value. */
+function asString(value: unknown): string {
+	return typeof value === "string" ? value : "";
+}
+
+/** Validate and coerce a `meetings show` payload into a typed detail. */
+export function parseMeetingDetail(data: unknown): MeetingDetail {
+	if (typeof data !== "object" || data === null) {
+		throw new CliError("parse", "Expected a meeting object from macparakeet-cli.");
+	}
+	const obj = data as Record<string, unknown>;
+	if (typeof obj.id !== "string") {
+		throw new CliError("parse", 'Meeting detail is missing a string "id".');
+	}
+	const transcript =
+		asString(obj.cleanTranscript) || asString(obj.transcript) || asString(obj.rawTranscript);
+	return {
+		id: obj.id,
+		shortID: asString(obj.shortID),
+		title: asString(obj.title) || "Untitled Meeting",
+		status: asString(obj.status),
+		createdAt: asString(obj.createdAt),
+		updatedAt: asString(obj.updatedAt),
+		durationMs: typeof obj.durationMs === "number" ? obj.durationMs : 0,
+		transcript,
+		userNotes: asString(obj.userNotes),
+		engine: typeof obj.engine === "string" ? obj.engine : undefined,
+	};
+}
+
+/** Validate and coerce a `results list` array into typed AI results. */
+export function parseAiResults(data: unknown): AiResult[] {
+	if (!Array.isArray(data)) {
+		throw new CliError("parse", "Expected a JSON array of AI results from macparakeet-cli.");
+	}
+	return data.map((raw, index) => {
+		if (typeof raw !== "object" || raw === null) {
+			throw new CliError("parse", `AI result at index ${index} was not a JSON object.`);
+		}
+		const obj = raw as Record<string, unknown>;
+		if (typeof obj.id !== "string") {
+			throw new CliError("parse", `AI result at index ${index} is missing a string "id".`);
+		}
+		return {
+			id: obj.id,
+			shortID: asString(obj.shortID),
+			name: asString(obj.name) || "Result",
+			content: asString(obj.content),
+			promptContent: asString(obj.promptContent),
+			createdAt: asString(obj.createdAt),
+			updatedAt: asString(obj.updatedAt),
+		};
+	});
 }
 
 /** Strip macOS unified-logging noise (e.g. the NSUserDefaults warning) from stderr. */
