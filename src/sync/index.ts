@@ -6,6 +6,7 @@ export {
 	joinPath,
 	renderTemplate,
 	sanitizeTitle,
+	uniqueName,
 } from "./paths";
 export type { DateParts } from "./paths";
 export {

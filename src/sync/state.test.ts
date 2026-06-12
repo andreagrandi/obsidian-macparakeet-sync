@@ -63,6 +63,23 @@ describe("assignNumber", () => {
 		expect(assignNumber(state, "a", "2026/06")).toBe(1);
 		expect(assignNumber(state, "b", "2026/07")).toBe(1);
 	});
+
+	it("gives a backfilled older meeting the next free number without renumbering the first", () => {
+		const state = emptyState("2026-06-01");
+		// A newer meeting is synced first and frozen at n=1.
+		const newer = assignNumber(state, "newer", "2026/06");
+		state.meetings["newer"] = {
+			folderPath: `M/1-newer`,
+			n: newer,
+			bucket: "2026/06",
+			snapshot: { updatedAt: "", promptResultCount: 0 },
+			files: {},
+		};
+		// Later, an older meeting in the same month is backfilled -> next free number.
+		expect(assignNumber(state, "older", "2026/06")).toBe(2);
+		// Re-syncing the first meeting keeps its frozen number.
+		expect(assignNumber(state, "newer", "2026/06")).toBe(1);
+	});
 });
 
 describe("effectiveSyncSince", () => {

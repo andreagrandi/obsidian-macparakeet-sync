@@ -4,7 +4,7 @@
  */
 
 import type { AiResult, MeetingDetail } from "../cli/types";
-import { sanitizeTitle } from "./paths";
+import { sanitizeTitle, uniqueName } from "./paths";
 
 /** One file the renderer wants written, with the source timestamp it mirrors. */
 export interface RenderedFile {
@@ -61,13 +61,7 @@ export function renderResults(
 
 /** Sanitized prompt name, with a " (shortID)" suffix on a collision. */
 function uniqueResultName(result: AiResult, used: Set<string>): string {
-	const base = sanitizeTitle(result.name);
-	let name = base;
-	if (used.has(name)) {
-		name = sanitizeTitle(`${base} (${result.shortID || result.id})`);
-	}
-	used.add(name);
-	return name;
+	return uniqueName(sanitizeTitle(result.name), result.shortID || result.id, used);
 }
 
 /** Stable order (oldest first, then id) so file naming never churns across syncs. */
