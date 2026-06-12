@@ -6,7 +6,7 @@
 import type { MeetingSummary } from "../cli/types";
 import { joinPath, bucketKey, dateParts, renderTemplate } from "./paths";
 import { renderMeeting } from "./renderer";
-import { assignNumber, effectiveSyncSince } from "./state";
+import { assignNumber, buildSourceIndex, effectiveSyncSince, findBySource, intervalFromDuration } from "./state";
 import type {
 	CliClient,
 	MeetingRecord,
@@ -47,9 +47,11 @@ export class SyncEngine {
 		const force = options.force ?? false;
 		const summary: SyncSummary = { created: 0, updated: 0, unchanged: 0 };
 
+		const state = this.getState();
+		const sourceIndex = buildSourceIndex(state);
 		const meetings = inScope(await this.cli.listMeetings(), this.syncSince());
 		for (const meeting of meetings) {
-			tally(summary, await this.processMeeting(meeting, force));
+			tally(summary, await this.processMeeting(meeting, force, sourceIndex));
 		}
 
 		await this.persist();
@@ -61,12 +63,22 @@ export class SyncEngine {
 	}
 
 	/** Classify one meeting, fetch + render only when new, changed, or forced. */
-	private async processMeeting(meeting: MeetingSummary, force: boolean): Promise<Outcome> {
+	private async processMeeting(
+		meeting: MeetingSummary,
+		force: boolean,
+		sourceIndex: Map<string, string>,
+	): Promise<Outcome> {
 		const state = this.getState();
 		const settings = this.getSettings();
-		const record = state.meetings[meeting.id];
+		const recordKey = findBySource(sourceIndex, "macparakeet", meeting.id) ?? meeting.id;
+		const record = state.meetings[recordKey];
 
 		if (record && !force && isUnchanged(record, meeting)) {
+			// Lazily upgrade a legacy record to the v2 canonical interval; this is a
+			// state-only change (no vault writes), so an upgraded sync stays a no-op.
+			if (!record.interval) {
+				record.interval = intervalFromDuration(meeting.createdAt, meeting.durationMs);
+			}
 			return "unchanged";
 		}
 
@@ -75,7 +87,7 @@ export class SyncEngine {
 		const results = settings.syncResults ? await this.cli.listResults(meeting.id) : [];
 
 		const bucket = record?.bucket ?? bucketKey(meeting.createdAt);
-		const n = assignNumber(state, meeting.id, bucket);
+		const n = assignNumber(state, recordKey, bucket);
 		const folderPath =
 			record?.folderPath ?? joinPath(settings.baseFolder, renderTemplate(settings.pathTemplate, detail, n));
 
@@ -83,7 +95,7 @@ export class SyncEngine {
 			folderPath,
 			n,
 			bucket,
-			snapshot: { updatedAt: "", promptResultCount: -1 },
+			sources: {},
 			files: {},
 		};
 
@@ -131,8 +143,14 @@ export class SyncEngine {
 			}
 		}
 
-		current.snapshot = { updatedAt: meeting.updatedAt, promptResultCount: meeting.promptResultCount };
-		state.meetings[meeting.id] = current;
+		current.sources.macparakeet = {
+			id: meeting.id,
+			snapshot: { updatedAt: meeting.updatedAt, promptResultCount: meeting.promptResultCount },
+		};
+		if (!current.interval) {
+			current.interval = intervalFromDuration(meeting.createdAt, meeting.durationMs);
+		}
+		state.meetings[recordKey] = current;
 
 		if (isNew) {
 			return "created";
@@ -141,11 +159,13 @@ export class SyncEngine {
 	}
 }
 
-/** A known meeting is unchanged when both snapshot fields still match. */
+/** A known meeting is unchanged when its MacParakeet snapshot fields still match. */
 export function isUnchanged(record: MeetingRecord, meeting: MeetingSummary): boolean {
+	const snapshot = record.sources.macparakeet?.snapshot;
 	return (
-		record.snapshot.updatedAt === meeting.updatedAt &&
-		record.snapshot.promptResultCount === meeting.promptResultCount
+		snapshot !== undefined &&
+		snapshot.updatedAt === meeting.updatedAt &&
+		snapshot.promptResultCount === meeting.promptResultCount
 	);
 }
 

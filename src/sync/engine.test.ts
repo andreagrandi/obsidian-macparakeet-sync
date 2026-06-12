@@ -339,6 +339,64 @@ describe("SyncEngine — sync scope and numbering", () => {
 	});
 });
 
+describe("SyncEngine — v1 upgrade", () => {
+	it("first sync after migration is a no-op that lazily backfills the canonical interval", async () => {
+		const cli = new FakeCli(
+			[summary({ id: "m-1", promptResultCount: 1 })],
+			{ "m-1": detail({ id: "m-1" }) },
+			{ "m-1": [aiResult({ id: "r-1" })] },
+		);
+		const vault = new FakeVault();
+		// A migrated v1 record: a macparakeet binding whose snapshot matches the
+		// incoming summary, and no interval yet (backfilled on the next sync).
+		const state = emptyState("2026-06-01");
+		state.counters["2026/06"] = 2;
+		state.meetings["m-1"] = {
+			folderPath: FOLDER,
+			n: 1,
+			bucket: "2026/06",
+			sources: {
+				macparakeet: { id: "m-1", snapshot: { updatedAt: "2026-06-12T10:30:00Z", promptResultCount: 1 } },
+			},
+			files: { index: { path: `${FOLDER}/1 - Weekly Standup.md`, sourceUpdatedAt: "2026-06-12T10:30:00Z" } },
+		};
+
+		const result = await makeEngine(cli, vault, state, settings()).sync();
+
+		expect(result).toEqual({ created: 0, updated: 0, unchanged: 1 });
+		expect(vault.writeLog).toHaveLength(0);
+		expect(cli.showCount).toBe(0);
+		// Numbering and folder are untouched; only the canonical interval is added.
+		expect(state.meetings["m-1"]?.n).toBe(1);
+		expect(state.meetings["m-1"]?.folderPath).toBe(FOLDER);
+		expect(state.meetings["m-1"]?.interval).toEqual({
+			start: "2026-06-12T10:00:00.000Z",
+			end: "2026-06-12T10:47:00.000Z",
+		});
+	});
+
+	it("records the macparakeet binding and interval for a freshly imported meeting", async () => {
+		const cli = new FakeCli(
+			[summary({ id: "m-1", promptResultCount: 1 })],
+			{ "m-1": detail({ id: "m-1" }) },
+			{ "m-1": [aiResult({ id: "r-1" })] },
+		);
+		const vault = new FakeVault();
+		const state = emptyState("2026-06-01");
+
+		await makeEngine(cli, vault, state, settings()).sync();
+
+		expect(state.meetings["m-1"]?.sources.macparakeet).toEqual({
+			id: "m-1",
+			snapshot: { updatedAt: "2026-06-12T10:30:00Z", promptResultCount: 1 },
+		});
+		expect(state.meetings["m-1"]?.interval).toEqual({
+			start: "2026-06-12T10:00:00.000Z",
+			end: "2026-06-12T10:47:00.000Z",
+		});
+	});
+});
+
 describe("inScope", () => {
 	it("keeps completed, on-or-after meetings sorted oldest first", () => {
 		const meetings: MeetingSummary[] = [

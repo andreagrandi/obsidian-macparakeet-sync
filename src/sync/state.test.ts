@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { assignNumber, effectiveSyncSince, normalizeData } from "./state";
+import {
+	assignNumber,
+	buildSourceIndex,
+	effectiveSyncSince,
+	findBySource,
+	intervalFromDuration,
+	normalizeData,
+} from "./state";
 import { DEFAULT_SETTINGS, emptyState } from "./types";
 
 describe("normalizeData", () => {
@@ -9,7 +16,7 @@ describe("normalizeData", () => {
 		expect(data.state).toEqual(emptyState("2026-06-12"));
 	});
 
-	it("preserves persisted settings and state across a round-trip", () => {
+	it("round-trips v2 state byte-for-byte (load -> normalize -> save -> load)", () => {
 		const original = {
 			settings: { ...DEFAULT_SETTINGS, baseFolder: "Notes", syncTranscript: true },
 			state: {
@@ -20,14 +27,95 @@ describe("normalizeData", () => {
 						folderPath: "Notes/Meetings/2026/06/2-Standup",
 						n: 2,
 						bucket: "2026/06",
-						snapshot: { updatedAt: "2026-06-12T10:30:00Z", promptResultCount: 3 },
+						interval: { start: "2026-06-12T10:00:00.000Z", end: "2026-06-12T10:47:00.000Z" },
+						sources: {
+							macparakeet: { id: "m-1", snapshot: { updatedAt: "2026-06-12T10:30:00Z", promptResultCount: 3 } },
+						},
 						files: { index: { path: "x.md", sourceUpdatedAt: "2026-06-12T10:30:00Z" } },
 					},
 				},
 			},
 		};
-		const data = normalizeData(original, "2026-06-12");
-		expect(data).toEqual(original);
+		const once = normalizeData(original, "2026-06-12");
+		expect(once).toEqual(original);
+		// Idempotent: a second pass over the normalized shape changes nothing.
+		expect(normalizeData(JSON.parse(JSON.stringify(once)), "2026-06-12")).toEqual(once);
+	});
+
+	it("migrates a v1 record into a macparakeet source binding, preserving n/bucket/folder/files", () => {
+		const v1 = {
+			state: {
+				installDate: "2026-01-01",
+				counters: { "2026/06": 3 },
+				meetings: {
+					"uuid-1": {
+						folderPath: "Meetings/2026/06 - June/2 - Standup",
+						n: 2,
+						bucket: "2026/06",
+						snapshot: { updatedAt: "2026-06-12T10:30:00Z", promptResultCount: 3 },
+						files: {
+							index: { path: "Meetings/2026/06 - June/2 - Standup/2 - Standup.md", sourceUpdatedAt: "2026-06-12T10:30:00Z" },
+							"result:r-1": { path: "Meetings/2026/06 - June/2 - Standup/Summary.md", sourceUpdatedAt: "2026-06-12T10:05:00Z" },
+						},
+					},
+				},
+			},
+		};
+		const record = normalizeData(v1, "2026-06-12").state.meetings["uuid-1"];
+		expect(record?.n).toBe(2);
+		expect(record?.bucket).toBe("2026/06");
+		expect(record?.folderPath).toBe("Meetings/2026/06 - June/2 - Standup");
+		expect(record?.files).toEqual(v1.state.meetings["uuid-1"].files);
+		expect(record?.sources).toEqual({
+			macparakeet: { id: "uuid-1", snapshot: { updatedAt: "2026-06-12T10:30:00Z", promptResultCount: 3 } },
+		});
+		// Interval is backfilled lazily on the next sync, not during migration.
+		expect(record?.interval).toBeUndefined();
+	});
+
+	it("re-normalizing a migrated record is idempotent", () => {
+		const v1 = {
+			state: {
+				meetings: {
+					"uuid-1": {
+						folderPath: "Meetings/2026/06 - June/1 - Sync",
+						n: 1,
+						bucket: "2026/06",
+						snapshot: { updatedAt: "2026-06-12T10:30:00Z", promptResultCount: 0 },
+						files: {},
+					},
+				},
+			},
+		};
+		const first = normalizeData(v1, "2026-06-12");
+		const second = normalizeData(JSON.parse(JSON.stringify(first)), "2026-06-12");
+		expect(second).toEqual(first);
+	});
+
+	it("handles mixed-shape state (v1 and v2 records side by side)", () => {
+		const mixed = {
+			state: {
+				meetings: {
+					legacy: {
+						folderPath: "f1",
+						n: 1,
+						bucket: "2026/06",
+						snapshot: { updatedAt: "t1", promptResultCount: 1 },
+						files: {},
+					},
+					modern: {
+						folderPath: "f2",
+						n: 2,
+						bucket: "2026/06",
+						sources: { macparakeet: { id: "modern", snapshot: { updatedAt: "t2", promptResultCount: 2 } } },
+						files: {},
+					},
+				},
+			},
+		};
+		const meetings = normalizeData(mixed, "2026-06-12").state.meetings;
+		expect(meetings.legacy?.sources.macparakeet).toEqual({ id: "legacy", snapshot: { updatedAt: "t1", promptResultCount: 1 } });
+		expect(meetings.modern?.sources.macparakeet).toEqual({ id: "modern", snapshot: { updatedAt: "t2", promptResultCount: 2 } });
 	});
 
 	it("ignores an unrelated installDate argument when state already has one", () => {
@@ -50,7 +138,7 @@ describe("assignNumber", () => {
 			folderPath: "x",
 			n: 7,
 			bucket: "2026/06",
-			snapshot: { updatedAt: "", promptResultCount: 0 },
+			sources: {},
 			files: {},
 		};
 		state.counters["2026/06"] = 9;
@@ -72,7 +160,7 @@ describe("assignNumber", () => {
 			folderPath: `M/1-newer`,
 			n: newer,
 			bucket: "2026/06",
-			snapshot: { updatedAt: "", promptResultCount: 0 },
+			sources: {},
 			files: {},
 		};
 		// Later, an older meeting in the same month is backfilled -> next free number.
@@ -91,5 +179,41 @@ describe("effectiveSyncSince", () => {
 	it("falls back to the install date when the setting is blank", () => {
 		const state = emptyState("2026-06-01");
 		expect(effectiveSyncSince({ ...DEFAULT_SETTINGS, syncSince: "" }, state)).toBe("2026-06-01");
+	});
+});
+
+describe("buildSourceIndex / findBySource", () => {
+	it("resolves a source meeting to its record key in O(1), across multiple sources", () => {
+		const state = emptyState("2026-06-01");
+		state.meetings["rec-1"] = {
+			folderPath: "f",
+			n: 1,
+			bucket: "2026/06",
+			sources: {
+				macparakeet: { id: "mp-1", snapshot: { updatedAt: "t", promptResultCount: 0 } },
+				fellow: { id: "fl-9", snapshot: { updatedAt: "t", promptResultCount: 0 } },
+			},
+			files: {},
+		};
+		const index = buildSourceIndex(state);
+		expect(findBySource(index, "macparakeet", "mp-1")).toBe("rec-1");
+		expect(findBySource(index, "fellow", "fl-9")).toBe("rec-1");
+		expect(findBySource(index, "macparakeet", "missing")).toBeUndefined();
+	});
+});
+
+describe("intervalFromDuration", () => {
+	it("derives an ISO interval from a start instant and duration", () => {
+		expect(intervalFromDuration("2026-06-12T10:00:00Z", 2820000)).toEqual({
+			start: "2026-06-12T10:00:00.000Z",
+			end: "2026-06-12T10:47:00.000Z",
+		});
+	});
+
+	it("clamps negative durations to a zero-length interval", () => {
+		expect(intervalFromDuration("2026-06-12T10:00:00Z", -5000)).toEqual({
+			start: "2026-06-12T10:00:00.000Z",
+			end: "2026-06-12T10:00:00.000Z",
+		});
 	});
 });
