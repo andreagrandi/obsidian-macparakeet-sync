@@ -3,7 +3,16 @@ import { existsSync } from "node:fs";
 import { CliBridge, CliError, nodeCommandRunner } from "./cli";
 import { SyncEngine } from "./sync";
 import { normalizeData } from "./sync";
-import type { PluginData, SyncOptions, SyncSummary, VaultIO } from "./sync";
+import type { PluginData, Settings, SyncOptions, SyncSummary, VaultIO } from "./sync";
+import { MacParakeetSettingTab } from "./settings-tab";
+
+/** Result of validating the CLI path, surfaced in the settings tab. */
+export interface CliStatus {
+	ok: boolean;
+	path?: string;
+	meetingCount?: number;
+	error?: string;
+}
 
 export default class MacParakeetSyncPlugin extends Plugin {
 	private cli!: CliBridge;
@@ -51,10 +60,34 @@ export default class MacParakeetSyncPlugin extends Plugin {
 				void this.syncNow({ force: true });
 			},
 		});
+
+		this.addSettingTab(new MacParakeetSettingTab(this.app, this));
 	}
 
 	onunload(): void {
 		// Commands registered via addCommand are unregistered automatically on unload.
+	}
+
+	/** Current settings; the engine and settings tab read these live. */
+	getSettings(): Settings {
+		return this.data.settings;
+	}
+
+	/** Merge a settings patch and persist it; takes effect on the next sync. */
+	async updateSettings(patch: Partial<Settings>): Promise<void> {
+		this.data.settings = { ...this.data.settings, ...patch };
+		await this.saveData(this.data);
+	}
+
+	/** Re-discover and validate the CLI from the current override; for the settings tab. */
+	async validateCli(): Promise<CliStatus> {
+		this.cli.clearCache();
+		try {
+			const { cliPath, meetingCount } = await this.cli.checkConnection();
+			return { ok: true, path: cliPath, meetingCount };
+		} catch (error) {
+			return { ok: false, error: describeCliError(error) };
+		}
 	}
 
 	private async checkConnection(): Promise<void> {
